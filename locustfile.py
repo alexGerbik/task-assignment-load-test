@@ -5,10 +5,12 @@ from locust import TaskSet, task, between, HttpLocust
 USERS_AMOUNT = 100
 host = 'http://localhost:5000'
 
-reader_credentials = [(f"user_{i}@gmail.com", "password") for i in range(USERS_AMOUNT)]
+reader_credentials = []
 
-# reviewer_credentials = [(f"reviewer_{i}@gmail.com", "password") for i in range(USERS_AMOUNT)]
-reviewer_credentials = [("reviewer@gmail.com", "password")]
+reviewer_credentials = []
+
+# wait_time = between(0.01, 0.02)
+wait_time = between(0.001, 0.001)
 
 
 def login(task_set, creds):
@@ -21,12 +23,18 @@ def login(task_set, creds):
 class ReaderTaskSet(TaskSet):
     headers = None
 
+    def setup(self):
+        global reader_credentials
+        reader_credentials = [(f"user_{i}@gmail.com", "password") for i in range(USERS_AMOUNT)]
+
+
     def on_start(self):
         login(self, reader_credentials)
 
     @task
     def annotate(self):
-        response = self.client.post("/task/request", json={"amount": 1, "includeCurrentTasks": True}, headers=self.headers)
+        response = self.client.post("/task/request", json={"amount": 1, "includeCurrentTasks": True},
+                                    headers=self.headers, name="/task/request reader")
         tasks = response.json()['tasks']
         for t in tasks:
             id = t['taskId']
@@ -35,13 +43,15 @@ class ReaderTaskSet(TaskSet):
     def _finish_task(self, id):
         result = {'coin': "HEAD" if random.random() < 0.5 else "TAIL"}
         self.client.post(f"/task/{id}/save", json={"final": True, "result": result, "timeSpent": 1},
-                         headers=self.headers, name="/task/[id]/save")
+                         headers=self.headers, name="/task/save reader")
 
 
-# class Reader(HttpLocust):
-#     host = host
-#     task_set = ReaderTaskSet
-#     wait_time = between(1, 2)
+class Reader(HttpLocust):
+
+    weight = 4
+    host = host
+    task_set = ReaderTaskSet
+    wait_time = wait_time
 
 
 
@@ -49,16 +59,21 @@ class ReaderTaskSet(TaskSet):
 class ReviewerTaskSet(TaskSet):
     headers = None
 
+    def setup(self):
+        global reviewer_credentials
+        reviewer_credentials = [(f"reviewer_{i}@gmail.com", "password") for i in range(USERS_AMOUNT)]
+
+
     def on_start(self):
         login(self, reviewer_credentials)
 
     @task
     def review(self):
         response = self.client.post("/task/request", json={"amount": 1, "includeCurrentTasks": True},
-                                    headers=self.headers)
+                                    headers=self.headers, name="/task/request reviewer")
         tasks = response.json()['tasks']
         for t in tasks:
-            print(t)
+            # print(t)
             id = t['taskId']
             task_data = t['taskData']
             self._finish_task(id, task_data)
@@ -77,12 +92,13 @@ class ReviewerTaskSet(TaskSet):
             result = {"decision": "approve", "data": inspected_task}
 
         self.client.post(f"/task/{id}/save", json={"final": True, "result": result, "timeSpent": 1},
-                         headers=self.headers, name="/task/[id]/save")
+                         headers=self.headers, name="/task/save reviewer")
 
 
 
 
 class ReviewerUser(HttpLocust):
+    weight = 1
     host = host
     task_set = ReviewerTaskSet
-    wait_time = between(1, 2)
+    wait_time = wait_time
