@@ -9,8 +9,8 @@ reader_credentials = []
 
 reviewer_credentials = []
 
-# wait_time = between(0.01, 0.02)
-wait_time = between(0.001, 0.001)
+# wait_time = between(0.001, 0.001)
+wait_time = between(4, 5)
 
 
 def login(task_set, creds):
@@ -37,23 +37,22 @@ class ReaderTaskSet(TaskSet):
                                     headers=self.headers, name="/task/request reader")
         tasks = response.json()['tasks']
         for t in tasks:
-            id = t['taskId']
-            self._finish_task(id)
+            self._finish_task(t)
 
-    def _finish_task(self, id):
-        result = {'coin': "HEAD" if random.random() < 0.5 else "TAIL"}
+    def _finish_task(self, task):
+        id = task['taskId']
+        is_pushback = bool(task['previousSubmission'])
+        result = task['taskData'] if is_pushback else {'coin': "HEAD" if random.random() < 0.5 else "TAIL"}
         self.client.post(f"/task/{id}/save", json={"final": True, "result": result, "timeSpent": 1},
                          headers=self.headers, name="/task/save reader")
 
 
 class Reader(HttpLocust):
-
-    weight = 4
+    weight = 3
+    # weight = 1
     host = host
     task_set = ReaderTaskSet
     wait_time = wait_time
-
-
 
 
 class ReviewerTaskSet(TaskSet):
@@ -62,7 +61,6 @@ class ReviewerTaskSet(TaskSet):
     def setup(self):
         global reviewer_credentials
         reviewer_credentials = [(f"reviewer_{i}@gmail.com", "password") for i in range(USERS_AMOUNT)]
-
 
     def on_start(self):
         login(self, reviewer_credentials)
@@ -80,15 +78,11 @@ class ReviewerTaskSet(TaskSet):
 
     def _finish_task(self, id, task_data):
         is_rejectable = task_data['isRejectable']
-        annotations = task_data['annotations']
         inspected_task = task_data['inspectedTask']
 
-        result = None
-        if is_rejectable and len(annotations) == 1:
-            ann = next(iter(annotations.values()))
-            if ann != inspected_task:
-                result = {"decision": "reject", "feedback": {}}
-        if not result:
+        if is_rejectable and random.random() < 0.10:
+            result = {"decision": "reject", "feedback": {}}
+        else:
             result = {"decision": "approve", "data": inspected_task}
 
         self.client.post(f"/task/{id}/save", json={"final": True, "result": result, "timeSpent": 1},
