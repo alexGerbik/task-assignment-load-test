@@ -75,6 +75,14 @@ group by type, counts.times_assigned
 -- QA		6126	1
 -- NORMAL	5120	1
 
+select count(type), type, is_pushback
+from task
+join assignment a on task.id = a.task_id
+group by type, is_pushback
+order by is_pushback
+;
+
+
 
 
 
