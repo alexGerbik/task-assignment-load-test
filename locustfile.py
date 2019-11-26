@@ -33,9 +33,13 @@ class ReaderTaskSet(TaskSet):
 
     @task
     def annotate(self):
-        response = self.client.post("/task/request", json={"amount": 1, "includeCurrentTasks": True},
-                                    headers=self.headers, name="/task/request reader")
-        tasks = response.json()['tasks']
+        with self.client.post("/task/request", json={"amount": 1, "includeCurrentTasks": True},
+                                    headers=self.headers, name="/task/request reader", catch_response=True) as response:
+            tasks = response.json()['tasks']
+            if len(tasks) > 0:
+                response.success()
+            else:
+                response.failure("Task list is empty")
         for t in tasks:
             self._finish_task(t)
 
@@ -67,9 +71,13 @@ class ReviewerTaskSet(TaskSet):
 
     @task
     def review(self):
-        response = self.client.post("/task/request", json={"amount": 1, "includeCurrentTasks": True},
-                                    headers=self.headers, name="/task/request reviewer")
-        tasks = response.json()['tasks']
+        with self.client.post("/task/request", json={"amount": 1, "includeCurrentTasks": True},
+                                    headers=self.headers, name="/task/request reviewer", catch_response=True) as response:
+            tasks = response.json()['tasks']
+            if len(tasks) > 0:
+                response.success()
+            else:
+                response.failure("Task list is empty")
         for t in tasks:
             # print(t)
             id = t['taskId']
