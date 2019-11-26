@@ -80,10 +80,10 @@ class ReviewerTaskSet(TaskSet):
         is_rejectable = task_data['isRejectable']
         inspected_task = task_data['inspectedTask']
 
-        if is_rejectable and random.random() < 0.10:
-            result = {"decision": "reject", "feedback": {}}
-        else:
-            result = {"decision": "approve", "data": inspected_task}
+        # if is_rejectable and random.random() < 0.10:
+        #     result = {"decision": "reject", "feedback": {}}
+        # else:
+        result = {"decision": "approve", "data": inspected_task}
 
         self.client.post(f"/task/{id}/save", json={"final": True, "result": result, "timeSpent": 1},
                          headers=self.headers, name="/task/save reviewer")
