@@ -34,7 +34,7 @@ class ReaderTaskSet(TaskSet):
     @task
     def annotate(self):
         with self.client.post("/task/request", json={"amount": 1, "includeCurrentTasks": True},
-                                    headers=self.headers, name="/task/request reader", catch_response=True) as response:
+                                    headers=self.headers, name="reader /task/request", catch_response=True) as response:
             tasks = response.json()['tasks']
             if len(tasks) > 0:
                 response.success()
@@ -48,7 +48,7 @@ class ReaderTaskSet(TaskSet):
         is_pushback = bool(task['previousSubmission'])
         result = task['taskData'] if is_pushback else {'coin': "HEAD" if random.random() < 0.5 else "TAIL"}
         self.client.post(f"/task/{id}/save", json={"final": True, "result": result, "timeSpent": 1},
-                         headers=self.headers, name="/task/save reader")
+                         headers=self.headers, name="reader /task/save")
 
 
 class Reader(HttpLocust):
@@ -72,7 +72,7 @@ class ReviewerTaskSet(TaskSet):
     @task
     def review(self):
         with self.client.post("/task/request", json={"amount": 1, "includeCurrentTasks": True},
-                                    headers=self.headers, name="/task/request reviewer", catch_response=True) as response:
+                                    headers=self.headers, name="reviewer /task/request", catch_response=True) as response:
             tasks = response.json()['tasks']
             if len(tasks) > 0:
                 response.success()
@@ -94,7 +94,7 @@ class ReviewerTaskSet(TaskSet):
         result = {"decision": "approve", "data": inspected_task}
 
         self.client.post(f"/task/{id}/save", json={"final": True, "result": result, "timeSpent": 1},
-                         headers=self.headers, name="/task/save reviewer")
+                         headers=self.headers, name="reviewer /task/save")
 
 
 
