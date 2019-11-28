@@ -5,6 +5,9 @@ from locust import TaskSet, task, between, HttpLocust
 USERS_AMOUNT = 100
 readers_per_reviewer = 3
 do_pushback = False
+assignment_slice_seconds = 10
+intermediate_save_probability = 0.05
+skip_probability = 0.05
 
 
 class LocustMixin:
@@ -27,6 +30,13 @@ class AbstractUserTaskSet(TaskSet):
         token = response.json()["token"]
         self.headers = {'Authorization': f'Bearer {token}'}
 
+    @task(5)
+    def recycle(self):
+        url = "/task/request"
+        data = {"amount": self.tasks_per_request, "includeCurrentTasks": True}
+        self.client.post(url, json=data, headers=self.headers, name=f"{self.logs_name} outdated {url}")
+        self._sleep(assignment_slice_seconds + 1)
+
     @task(100)
     def accomplish_tasks(self):
         url = "/task/request"
@@ -43,8 +53,18 @@ class AbstractUserTaskSet(TaskSet):
     def finish_task(self, task):
         id = task['taskId']
         result = self.get_result(task)
-        data = {"final": True, "result": result, "timeSpent": 1}
-        self.client.post(f"/task/{id}/save", json=data, headers=self.headers, name=f"{self.logs_name} /task/save")
+        choice = random.choices(
+            [0, 1, 2],
+            [skip_probability, intermediate_save_probability, 1 - skip_probability - intermediate_save_probability]
+        )[0]
+        if choice == 0 and task['isSkippable']:
+            self.client.post(f"/task/{id}/skip", headers=self.headers, name=f"{self.logs_name} /task/skip")
+            return
+        if choice == 1:
+            data = {"final": False, "result": result, "timeSpent": 1}
+            self.client.post(f"/task/{id}/save", json=data, headers=self.headers, name=f"{self.logs_name} /task/save")
+        data = {"final": True, "result": result, "timeSpent": 2}
+        self.client.post(f"/task/{id}/save", json=data, headers=self.headers, name=f"{self.logs_name} /task/submit")
 
 
 class ReaderTaskSet(AbstractUserTaskSet):
