@@ -1,5 +1,8 @@
 import random
 
+import jwt
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
 from locust import TaskSet, task, between, HttpLocust
 
 USERS_AMOUNT = 100
@@ -8,6 +11,29 @@ do_pushback = False
 assignment_slice_seconds = 10
 intermediate_save_probability = 0.05
 skip_probability = 0.05
+
+
+def load_pem_private_key(private_key_filename):
+    with open(private_key_filename, "rb") as file:
+        data = file.read()
+    return serialization.load_pem_private_key(data, password=None, backend=default_backend())
+
+
+def load_users(amount, filename):
+    with open(filename) as file:
+        ids = file.read().splitlines()
+    ids = ids[:amount]
+    import uuid
+
+    return [uuid.UUID(i) for i in ids]
+
+
+def create_token(user_id, permissions, private_key):
+    payload = {"userId": str(user_id), "permissions": permissions}
+    return jwt.encode(payload, private_key, algorithm="RS256").decode("utf-8")
+
+
+private_key = load_pem_private_key('key.pem')
 
 
 class LocustMixin:
@@ -25,10 +51,10 @@ class AbstractUserTaskSet(TaskSet):
         self.login()
 
     def login(self):
-        email, password = self.credentials.pop()
-        response = self.client.post("/auth/obtain-token", json={"email": email, "password": password})
+        jwt_token = self.credentials.pop()
+        response = self.client.post("/auth/get-session-token", headers={"Authorization": f'Bearer {jwt_token}'})
         token = response.json()["token"]
-        self.headers = {'Authorization': f'Bearer {token}'}
+        self.headers = {'Authorization': f'Session {token}'}
 
     @task(5)
     def recycle(self):
@@ -72,7 +98,8 @@ class ReaderTaskSet(AbstractUserTaskSet):
     logs_name = 'reader'
 
     def setup(self):
-        reader_credentials = [(f"user_{i}@gmail.com", "password") for i in range(USERS_AMOUNT)]
+        reader_credentials = load_users(USERS_AMOUNT, 'users.txt')
+        reader_credentials = [create_token(c, ['tas:annotator'], private_key) for c in reader_credentials]
         self.credentials.clear()
         self.credentials.extend(reader_credentials)
 
@@ -86,7 +113,8 @@ class ReviewerTaskSet(AbstractUserTaskSet):
     logs_name = 'reviewer'
 
     def setup(self):
-        reviewer_credentials = [(f"reviewer_{i}@gmail.com", "password") for i in range(USERS_AMOUNT)]
+        reviewer_credentials = load_users(USERS_AMOUNT, 'reviewers.txt')
+        reviewer_credentials = [create_token(c, ['tas:annotator'], private_key) for c in reviewer_credentials]
         self.credentials.clear()
         self.credentials.extend(reviewer_credentials)
 
