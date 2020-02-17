@@ -30,7 +30,8 @@ def load_users(amount, filename):
 
 def create_token(user_id, permissions, private_key):
     payload = {"userId": str(user_id), "permissions": permissions}
-    return jwt.encode(payload, private_key, algorithm="RS256").decode("utf-8")
+    headers = {"authServiceId": "main"}
+    return jwt.encode(payload, private_key, algorithm="RS256", headers=headers).decode("utf-8")
 
 
 private_key = load_pem_private_key('key.pem')
